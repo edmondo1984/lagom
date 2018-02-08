@@ -1,4 +1,5 @@
 [![Gitter](https://img.shields.io/gitter/room/gitterHQ/gitter.svg)](https://gitter.im/lagom/lagom?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)[<img src="https://img.shields.io/travis/lagom/lagom.svg"/>](https://travis-ci.org/lagom/lagom)
+[![Open Source Helpers](https://www.codetriage.com/lagom/lagom/badges/users.svg)](https://www.codetriage.com/lagom/lagom)
 
 # Lagom - The Reactive Microservices Framework
 
@@ -19,7 +20,7 @@ Lagom focuses on ensuring that your application realises the full potential of t
 
 ## License
 
-Copyright (C) 2016-2017 Lightbend Inc. (https://www.lightbend.com).
+Copyright (C) 2016-2018 Lightbend Inc. (https://www.lightbend.com).
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this project except in compliance with the License. You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0.
 

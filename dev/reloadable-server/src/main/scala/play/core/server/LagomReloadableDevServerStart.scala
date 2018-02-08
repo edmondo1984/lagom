@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016-2017 Lightbend Inc. <https://www.lightbend.com>
+ * Copyright (C) 2016-2018 Lightbend Inc. <https://www.lightbend.com>
  */
 package play.core.server
 
@@ -26,14 +26,13 @@ import scala.util.{ Failure, Success, Try }
 object LagomReloadableDevServerStart {
 
   /**
-    * A threshold for retrieving the current hostname.
-    *
-    * If Lagom startup takes too long, it can cause a number of issues and we try to detect it using
-    * InetAddress.getLocalHost. If it takes longer than this threshold, it might be a signal
-    * of a well-known problem with MacOS that might cause issues with Lagom.
-    */
+   * A threshold for retrieving the current hostname.
+   *
+   * If Lagom startup takes too long, it can cause a number of issues and we try to detect it using
+   * InetAddress.getLocalHost. If it takes longer than this threshold, it might be a signal
+   * of a well-known problem with MacOS that might cause issues with Lagom.
+   */
   private val startupWarningThreshold = 1000L
-
 
   /**
    * Provides an HTTPS-only server for the dev environment.
