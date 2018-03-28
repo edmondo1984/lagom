@@ -32,22 +32,33 @@ private[lagom] class CircuitBreakersPanelInternal(
 
   private lazy val config = circuitBreakerConfig.config
   private lazy val defaultBreakerConfig = circuitBreakerConfig.default
+  private lazy val traceFailuresEnabled = config.getBoolean("trace-failures")
 
   private val breakers = new ConcurrentHashMap[String, Option[CircuitBreakerHolder]]
+
+  private def traceFailureIfEnabled(id:String, e:Throwable) = {
+      if(traceFailuresEnabled)
+        system.log.error(e, s"Circuit breaker $id has failed")
+  }
 
   def withCircuitBreaker[T](id: String)(body: => Future[T]): Future[T] = {
     breaker(id) match {
       case Some(CircuitBreakerHolder(b, metrics, failedCallDefinition)) =>
         val startTime = System.nanoTime()
 
+
         def elapsed: Long = System.nanoTime() - startTime
 
         val result: Future[T] = b.withCircuitBreaker(body, failedCallDefinition)
         result.onComplete {
           case Success(_)                              => metrics.onCallSuccess(elapsed)
-          case Failure(_: CircuitBreakerOpenException) => metrics.onCallBreakerOpenFailure()
-          case Failure(_: TimeoutException)            => metrics.onCallTimeoutFailure(elapsed)
-          case Failure(_)                              => metrics.onCallFailure(elapsed)
+          case Failure(e: CircuitBreakerOpenException) =>
+            metrics.onCallBreakerOpenFailure()
+          case Failure(e: TimeoutException)            => metrics.onCallTimeoutFailure(elapsed)
+          case Failure(e)                              => metrics.onCallFailure(elapsed)
+        }(system.dispatcher)
+        result.onFailure{
+          case e => traceFailureIfEnabled(id,e)
         }(system.dispatcher)
         result
       case None => body
