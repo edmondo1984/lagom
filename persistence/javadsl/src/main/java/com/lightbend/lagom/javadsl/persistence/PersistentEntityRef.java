@@ -6,6 +6,7 @@ package com.lightbend.lagom.javadsl.persistence;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.actor.NoSerializationVerificationNeeded;
+import akka.pattern.AskTimeoutException;
 import akka.pattern.PatternsCS;
 import akka.util.Timeout;
 import scala.concurrent.duration.FiniteDuration;
@@ -24,19 +25,22 @@ public final class PersistentEntityRef<Command> implements NoSerializationVerifi
   private final String entityId;
   private final ActorRef region;
   private final Timeout timeout;
+  private final ErrorHandler<Command> errorHandler;
 
-  public PersistentEntityRef(String entityId, ActorRef region, FiniteDuration askTimeout) {
+
+  public PersistentEntityRef(String entityId, ActorRef region, FiniteDuration askTimeout,ErrorHandler<Command> errorHandler) {
     this.entityId = entityId;
     this.region = region;
     this.timeout = Timeout.apply(askTimeout);
+    this.errorHandler = errorHandler;
   }
 
   /**
    * @deprecated Use the other constructor.
    */
   @Deprecated
-  public PersistentEntityRef(String entityId, ActorRef region, ActorSystem system, FiniteDuration askTimeout) {
-    this(entityId, region, askTimeout);
+  public PersistentEntityRef(String entityId, ActorRef region, ActorSystem system, FiniteDuration askTimeout,ErrorHandler<Command> errorHandler) {
+    this(entityId, region, askTimeout,errorHandler);
   }
 
   public String entityId() {
@@ -55,20 +59,18 @@ public final class PersistentEntityRef<Command> implements NoSerializationVerifi
   @SuppressWarnings("unchecked")
   public <Reply, Cmd extends Object & PersistentEntity.ReplyType<Reply>> CompletionStage<Reply> ask(Cmd command) {
     CompletionStage<Object> future = PatternsCS.ask(region, new CommandEnvelope(entityId, command), timeout);
-
     return future.thenCompose(result -> {
-      if (result instanceof Throwable) {
-        CompletableFuture<Reply> failed = new CompletableFuture<>();
-        failed.completeExceptionally((Throwable) result);
-        return failed;
-      } else {
-        return CompletableFuture.completedFuture((Reply) result);
-      }
-    });
-
+          if (result instanceof Throwable) {
+              return errorHandler.handleAskFailure((Throwable)result,command)
+          } else {
+              return CompletableFuture.completedFuture((Reply) result);
+          }
+      });
   }
 
-  /**
+
+
+    /**
    * The timeout for {@link #ask(Object)}. The timeout is by default defined in configuration
    * but it can be adjusted for a specific <code>PersistentEntityRef</code> using this method.
    * Note that this returns a new <code>PersistentEntityRef</code> instance with the given timeout
