@@ -11,7 +11,7 @@ import java.io.NotSerializableException
 import akka.actor.NoSerializationVerificationNeeded
 import akka.actor.ActorSystem
 import akka.util.Timeout
-import akka.pattern.{AskTimeoutException, ask => akkaAsk}
+import akka.pattern.{ AskTimeoutException, ask => akkaAsk }
 
 import scala.util.Failure
 
@@ -20,11 +20,11 @@ import scala.util.Failure
  * `PersistentEntityRef`. It is retrieved with [[PersistentEntityRegistry#refFor]].
  */
 final class PersistentEntityRef[Command](
-  val entityId: String,
-  region:       ActorRef,
-  system:       ActorSystem,
-  askTimeout:   FiniteDuration,
-  errorHandler:ErrorHandler
+  val entityId:  String,
+  region:        ActorRef,
+  system:        ActorSystem,
+  askTimeout:    FiniteDuration,
+  resultHandler: PersistentEntityResultHandler
 )
   extends NoSerializationVerificationNeeded {
 
@@ -43,7 +43,7 @@ final class PersistentEntityRef[Command](
     import scala.compat.java8.FutureConverters._
     import system.dispatcher
     val result = (region ? CommandEnvelope(entityId, command))
-    errorHandler.apResult(result)
+    resultHandler.mapResult(result, command)
   }
 
   /**
@@ -53,7 +53,7 @@ final class PersistentEntityRef[Command](
    * (`PersistentEntityRef` is immutable).
    */
   def withAskTimeout(timeout: FiniteDuration): PersistentEntityRef[Command] =
-    new PersistentEntityRef(entityId, region, system, askTimeout = timeout, errorHandler)
+    new PersistentEntityRef(entityId, region, system, askTimeout = timeout, resultHandler)
 
   //  Reasons for why we don't not support serialization of the PersistentEntityRef:
   //  - it will rarely be sent as a message itself, so providing a serializer will not help

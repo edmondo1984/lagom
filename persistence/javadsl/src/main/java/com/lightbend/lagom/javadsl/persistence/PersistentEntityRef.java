@@ -6,7 +6,6 @@ package com.lightbend.lagom.javadsl.persistence;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
 import akka.actor.NoSerializationVerificationNeeded;
-import akka.pattern.AskTimeoutException;
 import akka.pattern.PatternsCS;
 import akka.util.Timeout;
 import scala.concurrent.duration.FiniteDuration;
@@ -25,22 +24,22 @@ public final class PersistentEntityRef<Command> implements NoSerializationVerifi
   private final String entityId;
   private final ActorRef region;
   private final Timeout timeout;
-  private final ErrorHandler<Command> errorHandler;
+  private final PersistentEntityErrorHandler persistentEntityErrorHandler;
 
 
-  public PersistentEntityRef(String entityId, ActorRef region, FiniteDuration askTimeout,ErrorHandler<Command> errorHandler) {
+  public PersistentEntityRef(String entityId, ActorRef region, FiniteDuration askTimeout,PersistentEntityErrorHandler persistentEntityErrorHandler) {
     this.entityId = entityId;
     this.region = region;
     this.timeout = Timeout.apply(askTimeout);
-    this.errorHandler = errorHandler;
+    this.persistentEntityErrorHandler = persistentEntityErrorHandler;
   }
 
   /**
    * @deprecated Use the other constructor.
    */
   @Deprecated
-  public PersistentEntityRef(String entityId, ActorRef region, ActorSystem system, FiniteDuration askTimeout,ErrorHandler<Command> errorHandler) {
-    this(entityId, region, askTimeout,errorHandler);
+  public PersistentEntityRef(String entityId, ActorRef region, ActorSystem system, FiniteDuration askTimeout,PersistentEntityErrorHandler persistentEntityErrorHandler) {
+    this(entityId, region, askTimeout, persistentEntityErrorHandler);
   }
 
   public String entityId() {
@@ -61,7 +60,7 @@ public final class PersistentEntityRef<Command> implements NoSerializationVerifi
     CompletionStage<Object> future = PatternsCS.ask(region, new CommandEnvelope(entityId, command), timeout);
     return future.thenCompose(result -> {
           if (result instanceof Throwable) {
-              return errorHandler.handleAskFailure((Throwable)result,command)
+              return persistentEntityErrorHandler.handleAskFailure((Throwable)result,command);
           } else {
               return CompletableFuture.completedFuture((Reply) result);
           }
@@ -77,7 +76,7 @@ public final class PersistentEntityRef<Command> implements NoSerializationVerifi
    * (<code>PersistentEntityRef</code> is immutable).
    */
   public PersistentEntityRef<Command> withAskTimeout(FiniteDuration timeout) {
-    return new PersistentEntityRef<>(entityId, region, timeout);
+    return new PersistentEntityRef<>(entityId, region, timeout, persistentEntityErrorHandler);
   }
 
   //  Reasons for why we don't not support serialization of the PersistentEntityRef:

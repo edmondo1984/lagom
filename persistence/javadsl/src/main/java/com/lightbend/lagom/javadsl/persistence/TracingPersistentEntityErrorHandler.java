@@ -1,22 +1,25 @@
+/*
+ * Copyright (C) 2016-2018 Lightbend Inc. <https://www.lightbend.com>
+ */
 package com.lightbend.lagom.javadsl.persistence;
 
 
 import akka.cluster.Cluster;
 import akka.pattern.AskTimeoutException;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
-public class ErrorHandler {
+public class TracingPersistentEntityErrorHandler implements PersistentEntityErrorHandler {
 
-    private final PersistentEntityTracingConfig tracingConfig;
+    private final ErrorTracingConfig tracingConfig;
     private final Cluster cluster;
     private final String entityId;
 
-    public ErrorHandler(Cluster cluster,PersistentEntityTracingConfig tracingConfig, String entityId) {
+    public TracingPersistentEntityErrorHandler(Cluster cluster, ErrorTracingConfig tracingConfig, String entityId) {
         this.tracingConfig = tracingConfig;
         this.cluster =  cluster;
         this.entityId = entityId;
     }
+
 
 
     public <Reply,Cmd extends Object & PersistentEntity.ReplyType<Reply>> CompletionStage<Reply> handleAskFailure(Throwable failure, Cmd command){
@@ -30,22 +33,17 @@ public class ErrorHandler {
             }
             if(this.tracingConfig.logCommandsPayloadOnTimeout){
                 String message = failure.getMessage() + " with payload" + command;
-                return asFailedReply(new AskTimeoutException(message,failure.getCause()));
+                return DefaultPersistentEntityErrorHandler.asFailedReply(new AskTimeoutException(message,failure.getCause()));
             }
             else{
-                return asFailedReply(failure);
+                return DefaultPersistentEntityErrorHandler.asFailedReply(failure);
             }
 
         }
         else{
-            return asFailedReply(failure);
+            return DefaultPersistentEntityErrorHandler.asFailedReply(failure);
         }
     }
 
-    private <Reply> CompletionStage<Reply> asFailedReply(Throwable failure){
-        CompletableFuture<Reply> failed = new CompletableFuture<>();
-        failed.completeExceptionally(failure);
-        return failed;
-    }
 
 }
