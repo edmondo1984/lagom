@@ -3,18 +3,19 @@
  */
 package com.lightbend.lagom.internal.scaladsl.persistence
 
-import java.util.concurrent.{ CompletionStage, ConcurrentHashMap, TimeUnit }
+import java.util.concurrent.{CompletionStage, ConcurrentHashMap, TimeUnit}
 
-import akka.actor.{ ActorSystem, CoordinatedShutdown }
+import akka.actor.{ActorSystem, CoordinatedShutdown}
 import akka.cluster.Cluster
-import akka.cluster.sharding.{ ClusterSharding, ClusterShardingSettings, ShardRegion }
+import akka.cluster.sharding.{ClusterSharding, ClusterShardingSettings, ShardRegion}
 import akka.event.Logging
 import akka.pattern.ask
 import akka.persistence.query.Offset
 import akka.persistence.query.scaladsl.EventsByTagQuery
 import akka.stream.scaladsl
 import akka.util.Timeout
-import akka.{ Done, NotUsed }
+import akka.{Done, NotUsed}
+import com.lightbend.lagom.javadsl.persistence.PersistentEntityTracingConfig
 import com.lightbend.lagom.scaladsl.persistence._
 
 import scala.concurrent.Future
@@ -39,7 +40,14 @@ abstract class AbstractPersistentEntityRegistry(system: ActorSystem) extends Per
   protected val eventsByTagQuery: Option[EventsByTagQuery] = None
 
   private val sharding = ClusterSharding(system)
+  private val cluster = Cluster(system)
+
   private val conf = system.settings.config.getConfig("lagom.persistence")
+  private val persistenceEntityTracingConfig = {
+    val logClusterStateOnAskTimeout = conf.getBoolean("log-cluster-state-on-timeout")
+    val logCommandPayloadOnTimeout = conf.getBoolean("log-command-payload-on-failure")
+    new PersistentEntityTracingConfig(logClusterStateOnAskTimeout,logCommandPayloadOnTimeout)
+  }
   private val snapshotAfter: Option[Int] = conf.getString("snapshot-after") match {
     case "off" => None
     case _     => Some(conf.getInt("snapshot-after"))
@@ -106,7 +114,8 @@ abstract class AbstractPersistentEntityRegistry(system: ActorSystem) extends Per
     val entityClass = implicitly[ClassTag[P]].runtimeClass.asInstanceOf[Class[P]]
     val entityName = reverseRegister.get(entityClass)
     if (entityName == null) throw new IllegalArgumentException(s"[${entityClass.getName} must first be registered")
-    new PersistentEntityRef(entityId, sharding.shardRegion(entityName), system, askTimeout)
+    val errorHandler = new ErrorHandler(cluster, persistenceEntityTracingConfig, entityId)
+    new PersistentEntityRef(entityId, sharding.shardRegion(entityName), system, askTimeout,errorHandler)
   }
 
   private def entityTypeName(entityClass: Class[_]): String = Logging.simpleName(entityClass)

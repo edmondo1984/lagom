@@ -41,7 +41,14 @@ abstract class AbstractPersistentEntityRegistry(system: ActorSystem, injector: I
   protected val eventsByTagQuery: Option[EventsByTagQuery] = None
 
   private val sharding = ClusterSharding(system)
+  private val cluster = Cluster(system)
+
   private val conf = system.settings.config.getConfig("lagom.persistence")
+  private val persistenceEntityTracingConfig = {
+    val logClusterStateOnAskTimeout = conf.getBoolean("log-cluster-state-on-timeout")
+    val logCommandPayloadOnTimeout = conf.getBoolean("log-command-payload-on-failure")
+    new PersistentEntityTracingConfig(logClusterStateOnAskTimeout,logCommandPayloadOnTimeout)
+  }
   private val snapshotAfter: Optional[Int] = conf.getString("snapshot-after") match {
     case "off" => Optional.empty()
     case _     => Optional.of(conf.getInt("snapshot-after"))
@@ -112,10 +119,9 @@ abstract class AbstractPersistentEntityRegistry(system: ActorSystem, injector: I
 
   override def refFor[C](entityClass: Class[_ <: PersistentEntity[C, _, _]], entityId: String): PersistentEntityRef[C] = {
     val entityName = reverseRegister.get(entityClass)
-    if (entityName == null) throw new IllegalArgumentException(s"[${entityClass.getName} must first be registered");
-    PersistenceEntityTracingConfig config = new PersistenceEntityTracingConfig(false,false);
-    ErrorHandler errorHandler = new ErrorHandler(actorSystem, config, entityId);
-    return new PersistentEntityRef(entityId, sharding.shardRegion(entityName), askTimeout,errorHandler);
+    if (entityName == null) throw new IllegalArgumentException(s"[${entityClass.getName} must first be registered")
+    val errorHandler = new ErrorHandler(cluster, persistenceEntityTracingConfig, entityId)
+    new PersistentEntityRef(entityId, sharding.shardRegion(entityName), askTimeout,errorHandler)
   }
 
   private def entityTypeName(entityClass: Class[_]): String = Logging.simpleName(entityClass)
